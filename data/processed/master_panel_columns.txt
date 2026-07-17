@@ -1,0 +1,169 @@
+==============================================================================
+  master_panel_v9.parquet  —  컬럼 사전 (Data Dictionary)
+==============================================================================
+  위치   : data/processed/v9/master_panel_v9.parquet
+  행 수  : 1,237,580   |   컬럼 수 : 114
+  기간   : 2010-01-04 ~ 2025-12-30
+  종목수 : 369
+  계보   : v8(가격·수급·기술·매크로 86) + DART 재무 28 = v9 114
+
+  [★] = RL 모델이 실제 입력으로 쓰는 컬럼 (기술 8 + 재무 z 12 = 20개)
+  출처 : KRX(pykrx) 가격·수급 / 한국은행 매크로 / DART 분기재무(PIT-safe)
+  재무 결합: 공시일 기준(분기말+45/90일) merge_asof + 일별 forward-fill
+==============================================================================
+
+### 식별자  (2개)
+    date                             datetime64[ns] 유효 100.0%  거래일 (YYYY-MM-DD)
+    ticker                           object     유효 100.0%  종목코드 (6자리 문자열, 예 '005930')
+
+### 가격/거래량  (8개)
+    open                             int64      유효 100.0%  시가
+    high                             int64      유효 100.0%  고가
+    low                              int64      유효 100.0%  저가
+    close                            int64      유효 100.0%  종가
+    volume                           int64      유효 100.0%  거래량 (주)
+    market_cap                       float64    유효  99.8%  시가총액
+    listed_shares                    float64    유효  99.8%  상장주식수
+    trading_value                    float64    유효  99.8%  거래대금
+
+### 수익률  (2개)
+  ★ log_return                       float64    유효 100.0%  일별 로그수익률 [모델입력]
+    excess_return                    float64    유효 100.0%  종목수익 − KOSPI수익
+
+### 기술지표(정규화)  (5개)
+  ★ bb_pct                           float64    유효  99.2%  밴드 내 위치 0~1 [모델입력]
+  ★ volume_norm_30                   float64    유효  99.4%  30일 정규화 거래량 [모델입력]
+  ★ macd_z252                        float64    유효  95.5%  MACD 252일 z-score [모델입력]
+  ★ rsi_z63                          float64    유효  99.0%  RSI 63일 z-score [모델입력]
+  ★ atr_pct_z252                     float64    유효  95.9%  ATR% 252일 z-score [모델입력]
+
+### 기술지표(원값)  (14개)
+    rsi_14                           float64    유효 100.0%  RSI(14)
+    macd                             float64    유효  99.3%  MACD
+    macd_hist                        float64    유효  99.0%  MACD 히스토그램
+    macd_signal                      float64    유효  99.0%  MACD 시그널선
+    bb_lower                         float64    유효  99.4%  볼린저밴드 하단
+    bb_middle                        float64    유효  99.4%  볼린저밴드 중심(20MA)
+    bb_upper                         float64    유효  99.4%  볼린저밴드 상단
+    atr_14                           float64    유효  99.6%  ATR(14) 변동성
+    atr_pct                          float64    유효  99.6%  ATR / 가격 비율
+    sma_20                           float64    유효  99.4%  20일 단순이동평균
+    sma_60                           float64    유효  98.2%  60일 단순이동평균
+    ema_12                           float64    유효  99.7%  12일 지수이동평균
+    ema_26                           float64    유효  99.3%  26일 지수이동평균
+    volatility_20                    float64    유효  99.4%  20일 수익률 변동성
+
+### 수급(투자자별)  (9개)
+    inst_net                         float64    유효  99.2%  기관 순매수
+    corp_net                         float64    유효  99.2%  법인 순매수
+    indiv_net                        float64    유효  99.2%  개인 순매수
+    foreign_net                      float64    유효  99.2%  외국인 순매수
+    total_net                        float64    유효  99.2%  합계 순매수
+  ★ foreign_net_pct                  float64    유효  99.2%  외국인 순매수 비율 [모델입력]
+    inst_net_pct                     float64    유효  99.2%  기관 순매수 비율
+    indiv_net_pct                    float64    유효  99.2%  개인 순매수 비율
+    corp_net_pct                     float64    유효  99.2%  법인 순매수 비율
+
+### 공매도  (4개)
+    short_volume                     float64    유효  60.1%  공매도 거래량
+    short_total_volume               float64    유효  60.1%  공매도 누적 거래량
+    short_ratio_pct                  float64    유효  60.1%  공매도 비중(%)
+    short_volume_pct_volume          float64    유효  59.7%  공매도/거래량 비율
+
+### 시장/지수  (4개)
+    kospi_close                      float64    유효 100.0%  KOSPI200 종가
+  ★ kospi_return                     float64    유효 100.0%  KOSPI200 일별 수익률 [모델입력/벤치마크]
+    kospi_volatility_20              float64    유효  99.6%  KOSPI200 20일 변동성
+    is_market_stress                 float64    유효 100.0%  시장 스트레스 플래그(0/1)
+
+### 거시(매크로)  (16개)
+    macro_kor_base_rate              float64    유효 100.0%  한국 기준금리
+    macro_usdkrw                     float64    유효 100.0%  원/달러 환율
+    macro_kor_bond_3y                float64    유효 100.0%  국고채 3년 금리
+    macro_cpi                        float64    유효 100.0%  소비자물가지수
+    macro_ip                         float64    유효 100.0%  산업생산
+    macro_m2                         float64    유효 100.0%  광의통화 M2
+    macro_export                     int64      유효 100.0%  수출액
+    macro_gdp_real                   float64    유효 100.0%  실질 GDP
+    macro_usdkrw_chg_5d              float64    유효  99.9%  환율 5일 변화율
+    macro_usdkrw_chg_20d             float64    유효  99.7%  환율 20일 변화율
+    macro_cpi_yoy                    float64    유효  94.3%  CPI 전년비
+    macro_gdp_yoy                    float64    유효  94.3%  GDP 전년비
+    macro_export_yoy                 float64    유효  94.3%  수출 전년비
+    macro_m2_yoy                     float64    유효  94.3%  M2 전년비
+    macro_kor_base_rate_chg_1m       float64    유효  99.6%  기준금리 1개월 변화
+    macro_kor_bond_3y_chg_5d         float64    유효  99.9%  국고3년 5일 변화
+
+### 재무(정규화z)  (14개)
+  ★ revenue_z                        float64    유효  42.5%  매출 횡단면 z [모델입력]
+  ★ operating_inc_z                  float64    유효  26.3%  영업이익 z [모델입력]
+  ★ net_income_z                     float64    유효  16.6%  순이익 z [모델입력]
+    total_assets_z                   float64    유효  48.4%  자산총계 z
+    total_equity_z                   float64    유효  45.5%  자본총계 z
+  ★ revenue_yoy_growth_z             float64    유효  36.0%  매출성장 z [모델입력]
+  ★ operating_inc_yoy_growth_z       float64    유효  18.9%  영업이익성장 z [모델입력]
+  ★ net_income_yoy_growth_z          float64    유효  10.9%  순이익성장 z [모델입력]
+  ★ opm_ttm_z                        float64    유효  13.4%  영업이익률 z [모델입력]
+  ★ npm_ttm_z                        float64    유효   6.7%  순이익률 z [모델입력]
+  ★ roe_ttm_z                        float64    유효   8.6%  ROE z [모델입력]
+  ★ roa_ttm_z                        float64    유효   8.5%  ROA z [모델입력]
+  ★ debt_ratio_z                     float64    유효  45.3%  부채비율 z [모델입력]
+  ★ earning_surprise_z               float64    유효  17.9%  서프라이즈 z [모델입력]
+
+### 재무(원값,DART)  (14개)
+    revenue                          float64    유효  42.5%  매출액 (순수 분기)
+    operating_inc                    float64    유효  26.3%  영업이익 (순수 분기)
+    net_income                       float64    유효  16.6%  당기순이익 (순수 분기)
+    total_assets                     float64    유효  48.4%  자산총계
+    total_equity                     float64    유효  45.5%  자본총계
+    revenue_yoy_growth               float64    유효  36.0%  매출 전년동기 성장률
+    operating_inc_yoy_growth         float64    유효  18.9%  영업이익 전년동기 성장률
+    net_income_yoy_growth            float64    유효  10.9%  순이익 전년동기 성장률
+    opm_ttm                          float64    유효  13.4%  영업이익률 TTM
+    npm_ttm                          float64    유효   6.7%  순이익률 TTM
+    roe_ttm                          float64    유효   8.6%  ROE TTM
+    roa_ttm                          float64    유효   8.5%  ROA TTM
+    debt_ratio                       float64    유효  45.3%  부채비율
+    earning_surprise                 float64    유효  17.9%  영업이익 서프라이즈
+
+### 라벨(지도학습용)  (3개)
+    label_fwd_5d                     float64    유효  99.9%  향후 5일 수익률 (예측 타깃, RL입력 아님)
+    label_fwd_20d                    float64    유효  99.4%  향후 20일 수익률 (예측 타깃, RL입력 아님)
+    label_tb_20d                     Int8       유효  98.4%  20일 triple-barrier (+1/0/-1)
+
+### 유니버스  (1개)
+    is_pit_universe_kospi200         int64      유효 100.0%  그 시점 KOSPI200 편입 여부 [유니버스 필터]
+
+### 이벤트/플래그  (5개)
+    split_ratio_today                float64    유효 100.0%  당일 액면분할 비율
+    days_since_split                 int64      유효 100.0%  분할 이후 경과일
+    is_post_split_30d                int64      유효 100.0%  분할 후 30일 내(0/1)
+    is_volume_zero                   int64      유효 100.0%  거래량 0 (0/1)
+    is_halt_resume                   int64      유효 100.0%  거래정지/재개 (거래가능 판정에 사용)
+
+### 상장/상폐  (4개)
+    days_since_listing               int64      유효 100.0%  상장 이후 경과일
+    days_to_delisting                int64      유효 100.0%  상폐까지 잔여일
+    is_pre_delisting_30d             int64      유효 100.0%  상폐 30일 전(0/1)
+    is_short_ban                     int64      유효 100.0%  공매도 금지 기간(0/1)
+
+### 가격제한  (5개)
+    price_limit_pct                  int8       유효 100.0%  상·하한가 폭(%)
+    is_lower_limit_hit               int8       유효 100.0%  하한가 도달(0/1)
+    is_upper_limit_hit               int8       유효 100.0%  상한가 도달(0/1)
+    is_boundary_2014_residual        int8       유효 100.0%  2014 제도변경 경계 잔차
+    is_lower_limit_loose             int8       유효 100.0%  하한가 근접(완화판정)
+
+### 보정  (4개)
+    high_adj                         int64      유효 100.0%  수정 고가
+    is_high_corrected                int8       유효 100.0%  고가 보정 여부
+    is_listed_shares_event           int8       유효 100.0%  상장주식수 변동 이벤트
+    is_macro_release_day_monthly     int8       유효 100.0%  월간 매크로 발표일
+
+==============================================================================
+  모델 입력 요약: 기술지표 8 + 재무z 12 = 20개
+    기술: log_return, rsi_z63, macd_z252, foreign_net_pct, kospi_return, volume_norm_30, atr_pct_z252, bb_pct
+    재무z: revenue_z, operating_inc_z, net_income_z, revenue_yoy_growth_z, operating_inc_yoy_growth_z, net_income_yoy_growth_z, opm_ttm_z, npm_ttm_z, roe_ttm_z, roa_ttm_z, debt_ratio_z, earning_surprise_z
+    + 포트폴리오 상태 2(보유비중 w, 현금 1-w)
+    => state = 20일 × 기술8(160) + 재무z 12 + 2 = 174 차원
+==============================================================================

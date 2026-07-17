@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuantDesk — KOSPI200 Quant Console</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">Q</div>
+      <div>
+        <div class="brand-name">QuantDesk</div>
+        <div class="brand-sub">AUTO-TRADING</div>
+      </div>
+    </div>
+    <nav id="nav" class="nav"></nav>
+    <div class="acct-card">
+      <div class="acct-row">
+        <span id="acct-dot" class="dot"></span>
+        <span id="acct-label" class="acct-label">가상 계좌</span>
+      </div>
+      <div id="acct-asset" class="num acct-asset">—</div>
+      <div id="acct-pnl" class="num acct-pnl">브로커 미연동</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div id="screen-title" class="screen-title">대시보드</div>
+        <div id="screen-sub" class="screen-sub">자산 · 수익률 · 모델 추천 요약</div>
+      </div>
+      <div class="topbar-right">
+        <div class="kv">
+          <div class="k">데이터 기준일</div>
+          <div id="base-date" class="num v">—</div>
+        </div>
+        <div class="vline"></div>
+        <div class="kv">
+          <div class="k">다음 자동 예측</div>
+          <div id="next-run" class="num v">—</div>
+        </div>
+        <div class="vline"></div>
+        <div id="auto-pill" class="auto-pill off">
+          <span id="auto-text">자동매매 OFF</span>
+          <button id="auto-switch" class="switch" aria-label="자동매매 토글"><span class="knob"></span></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+      <section id="screen-dashboard" class="screen"></section>
+      <section id="screen-chart" class="screen hidden"></section>
+      <section id="screen-model" class="screen hidden"></section>
+      <section id="screen-result" class="screen hidden"></section>
+      <section id="screen-settings" class="screen hidden"></section>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# 데이터는 저장소 미포함 (master_panel.parquet 368MB — GitHub 100MB 제한 초과)
+# 문서(README·컬럼 사전)만 포함. 준비 방법은 루트 README '데이터 준비' 참고.
+data/db/
+data/raw/**
+data/processed/**
+!data/raw/README.md
+!data/processed/README.md
+!data/processed/master_panel_columns.txt
+
+# 학습 로그 (가중치 .pt 는 포함)
+model/lstm_sequence_strategy/models/train_history.csv

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "quantdesk",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--app-dir", "app", "--port", "8500"],
+      "port": 8500
+    }
+  ]
+}
