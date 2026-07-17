@@ -12,6 +12,12 @@ data/processed/**
 !data/raw/README.md
 !data/processed/README.md
 !data/processed/master_panel_columns.txt
+# 종목명·유니버스 메타는 작고 재구성 불가 자산이라 포함
+!data/raw/meta/
+!data/raw/meta/ticker_sector_map.csv
+!data/raw/meta/kospi200_universe_2016_2025.csv
+!data/raw/meta/kospi200_universe_by_year.csv
+!data/raw/meta/kospi200_universe_by_year_2010_2015.csv
 
 # 학습 로그 (가중치 .pt 는 포함)
 model/lstm_sequence_strategy/models/train_history.csv

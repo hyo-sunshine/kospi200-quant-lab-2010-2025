@@ -22,9 +22,10 @@ KOSPI200 유니버스 기반 퀀트 전략 연구·운용 저장소.
 `data/` 는 용량 문제(master_panel.parquet 368MB > GitHub 100MB 제한)로 **git에 없다**.
 클론 후 아래 중 하나로 준비:
 
-1. **기존 로컬/원 저장소에서 복사** — `data/processed/master_panel.parquet` 와
-   `data/raw/meta/*.csv` 를 같은 경로에 배치 (원본 수집·빌드 스크립트는
-   `sangjunInBus` 저장소의 `scripts/` 참고: collect_* → build_master_panel_v9.py)
+1. **기존 로컬/원 저장소에서 복사** — `data/processed/master_panel.parquet` 파일
+   **1개만** `data/processed/` 에 배치하면 된다 (종목명·유니버스 메타 CSV는
+   저장소에 포함되어 있음). 원본 수집·빌드 스크립트는 `sangjunInBus` 저장소의
+   `scripts/` 참고: collect_* → build_master_panel_v9.py
 2. 패널이 있으면 이후 갱신은 `pipeline/` 이 자동 수행 (매일 08:00 배치)
 
 ## 환경변수 설정 (.env)
