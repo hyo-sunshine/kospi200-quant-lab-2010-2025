@@ -27,8 +27,20 @@ KOSPI200 유니버스 기반 퀀트 전략 연구·운용 저장소.
    `sangjunInBus` 저장소의 `scripts/` 참고: collect_* → build_master_panel_v9.py)
 2. 패널이 있으면 이후 갱신은 `pipeline/` 이 자동 수행 (매일 08:00 배치)
 
-API 키는 루트 `.env` 에 (git 미포함): `ECOS_API_KEY`, `DART_API_KEY`,
-`KRX_ID`/`KRX_PW` (data.krx.co.kr 무료 계정 — 수급·공매도 수집용).
+## 환경변수 설정 (.env)
+
+```bash
+cp .env.example .env   # 템플릿 복사 후 실제 값 입력
+```
+
+| 키 | 용도 | 발급 (전부 무료) | 없으면 |
+|---|---|---|---|
+| `ECOS_API_KEY` | 환율·기준금리·국고3년 일별 갱신 | [ecos.bok.or.kr](https://ecos.bok.or.kr) 회원가입 → 마이페이지 → 인증키 신청 | 매크로가 마지막 값으로 고정(ffill) — 환율 피처 신호 소실 |
+| `DART_API_KEY` | 분기 재무제표 (추후 사용) | [opendart.fss.or.kr](https://opendart.fss.or.kr) 인증키 신청 | 현재는 영향 없음 (재무 z는 ffill) |
+| `KRX_ID` / `KRX_PW` | 수급·공매도·정확한 시총 일별 수집 | [data.krx.co.kr](https://data.krx.co.kr) 회원가입 — **SNS 가입 시 마이페이지→정보수정에서 비밀번호 신규 설정 필요** | 네이버 폴백(시세만 갱신) — rank_ensemble 수급 피처 정지 |
+
+`.env` 는 gitignore 대상이라 저장소에 올라가지 않는다. 파이프라인이 시작 시
+`.env` 를 자동으로 읽으므로 별도 export 는 불필요하다.
 
 **모델 가중치는 저장소에 포함** — LightGBM 18개(`model/rank_ensemble_strategy/models/`)
 + LSTM 체크포인트(`model/lstm_sequence_strategy/models/final_lstm_model.pt`).
