@@ -86,7 +86,20 @@ cp .env.example .env   # 템플릿 복사 후 실제 값 입력
 | `GET /api/predictions` | DB 예측 조회 (`model_id`, `run_date` 필터) |
 | `GET /api/stocks`, `GET /api/prices/{ticker}` | UI 차트용 시세 |
 | `GET/PUT /api/settings` | 자동매매 전략 설정 |
-| `GET /api/broker/*` | 한국투자증권(KIS) — **스텁, 미연동** |
+| `GET /api/broker/status·balance·trades` | 한국투자증권(KIS) 연동 상태·잔고·체결 내역 |
+| `GET /api/broker/plan` | 모델 신호 기반 매매 플랜 (리밸런스·익절·손절) |
+| `POST /api/broker/order` | 수동 주문 (UI 확인 후) |
+| `POST /api/broker/execute-plan` | 플랜 일괄 실행 — **모의투자 전용** |
+
+### KIS 연동 (.env)
+
+`.env`에 `KIS_APP_KEY` / `KIS_APP_SECRET` / `KIS_ACCOUNT_NO` / `KIS_ENV`를
+설정하면 자동 인식된다 ([apiportal.koreainvestment.com](https://apiportal.koreainvestment.com)
+발급, 모의투자 무료). 미설정 시 브로커 기능만 '미연동'으로 표시되고 나머지는 동일.
+
+- `KIS_ENV=paper`(모의투자, 기본): [매매 · 주문] 화면에서 플랜 일괄 실행 +
+  `auto_trade` ON 시 **평일 09:05** 자동 리밸런스 (08:00 예측 → 개장 후 5분 회피)
+- `KIS_ENV=real`(실전): 안전장치로 **수동 주문만** 허용 — 자동/일괄 실행은 서버에서 차단
 
 ## 로드맵
 
@@ -97,7 +110,7 @@ cp .env.example .env   # 템플릿 복사 후 실제 값 입력
 - [x] 일별 데이터 자동 갱신 파이프라인 (`pipeline/` — KRX 계정 또는 네이버 폴백)
 - [ ] KRX 계정(`KRX_ID`/`KRX_PW`) → 수급·공매도 일별 갱신 활성화
 - [ ] ECOS·DART API 키 → 매크로·재무 갱신 활성화
-- [ ] 한국투자증권 KIS OpenAPI 연동 (`app/broker/kis.py` 스텁 교체)
+- [x] 한국투자증권 KIS OpenAPI 연동 (잔고·주문·체결 + 매매 플랜·09:05 자동매매)
 - [ ] 예측 적중률 평가 (실현 수익률 대비)
 
 ## 주의

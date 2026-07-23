@@ -10,6 +10,7 @@ import db
 import market
 import registry
 import scheduler
+import trading
 from broker import kis
 
 logger = logging.getLogger("quantdesk.api")
@@ -149,15 +150,19 @@ class SettingsUpdate(BaseModel):
     max_position_krw: int | None = None
     max_holdings: int | None = None
     enabled_models: list[str] | None = None
+    trade_times: list[str] | None = None
 
 
 @router.put("/settings")
 def put_settings(update: SettingsUpdate):
     changes = {k: v for k, v in update.model_dump().items() if v is not None}
-    return {"settings": db.save_settings(changes)}
+    settings = db.save_settings(changes)
+    if "trade_times" in changes:
+        scheduler.reschedule_trade_jobs()   # 자동매매 시각 변경 즉시 반영
+    return {"settings": settings}
 
 
-# ---------- 브로커 (한국투자증권 — 스텁) ----------
+# ---------- 브로커 (한국투자증권 KIS OpenAPI) ----------
 @router.get("/broker/status")
 def broker_status():
     return kis.get_status()
@@ -170,4 +175,54 @@ def broker_balance():
 
 @router.get("/broker/trades")
 def broker_trades(limit: int = Query(20, le=100)):
-    return {"trades": kis.get_trade_log(limit)}
+    """KIS 계좌 체결 내역. 미연동이면 앱에서 시도한 주문 로그(로컬)라도 반환."""
+    trades = kis.get_trade_log(limit)
+    source = "kis"
+    if not trades:
+        trades = db.list_trades(limit)
+        source = "local"
+    return {"trades": trades, "source": source}
+
+
+@router.get("/broker/plan")
+def broker_plan():
+    """모델 신호 + 계좌 상태 기반 매매 플랜 (주문은 내지 않음)."""
+    return trading.suggest_orders()
+
+
+class OrderRequest(BaseModel):
+    ticker: str
+    side: str                       # BUY / SELL
+    qty: int
+    price: int | None = None        # None = 시장가
+
+
+@router.post("/broker/order")
+def broker_order(req: OrderRequest):
+    """수동 주문 — UI에서 사용자 확인을 거친 뒤 호출된다."""
+    if not kis.get_status()["connected"]:
+        raise HTTPException(503, "KIS 미연동 — .env에 KIS_APP_KEY 등을 설정하세요.")
+    try:
+        return trading.place_manual_order(req.ticker, req.side, req.qty, req.price)
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(400, str(e))
+
+
+class ExecutePlanRequest(BaseModel):
+    confirm: bool = False
+
+
+@router.post("/broker/execute-plan")
+def broker_execute_plan(req: ExecutePlanRequest):
+    """매매 플랜 일괄 실행 (모의투자 전용 — 실전은 서버에서 차단)."""
+    if not req.confirm:
+        raise HTTPException(400, "confirm=true 필요 — UI 확인 대화상자를 거쳐야 합니다.")
+    return trading.execute_plan(trigger="manual")
+
+
+@router.get("/broker/price/{ticker}")
+def broker_price(ticker: str):
+    price = kis.get_current_price(ticker)
+    if price is None:
+        raise HTTPException(503, "현재가 조회 실패 (미연동 또는 통신 오류)")
+    return {"ticker": ticker, "price": price}
