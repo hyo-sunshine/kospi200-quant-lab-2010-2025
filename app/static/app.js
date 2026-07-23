@@ -9,6 +9,7 @@ const SCREEN_TITLES = {
   chart: ['종목 · 일봉 차트', '캔들 차트 · 이동평균 · 모델 시그널'],
   model: ['모델 예측', '모델 선택 후 즉시 예측 실행'],
   result: ['예측 결과', '모델별 일별 예측 기록 · DB 조회'],
+  trading: ['매매 · 주문', 'KIS 계좌 · 모델 매매 플랜 · 수동 주문'],
   settings: ['자동매매 설정', '계좌 연동 · 전략 · 리스크 관리'],
 };
 const NAV_ITEMS = [
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { key: 'chart', label: '종목 · 차트', icon: '◧' },
   { key: 'model', label: '모델 예측', icon: '⬡' },
   { key: 'result', label: '예측 결과', icon: '▤' },
+  { key: 'trading', label: '매매 · 주문', icon: '⇄' },
   { key: 'settings', label: '자동매매 설정', icon: '⚙' },
 ];
 
@@ -65,7 +67,8 @@ function switchScreen(key) {
   document.getElementById(`screen-${key}`).classList.remove('hidden');
   renderNav();
   const renderers = { dashboard: renderDashboard, chart: renderChartScreen,
-    model: renderModelScreen, result: renderResultScreen, settings: renderSettings };
+    model: renderModelScreen, result: renderResultScreen,
+    trading: renderTradingScreen, settings: renderSettings };
   renderers[key]();
 }
 
@@ -82,6 +85,27 @@ function renderTopbar() {
   pill.classList.toggle('on', on);
   pill.classList.toggle('off', !on);
   document.getElementById('auto-text').textContent = `자동매매 ${on ? 'ON' : 'OFF'}`;
+}
+
+function renderSidebarAcct() {
+  const b = state.balance;
+  const broker = state.health?.broker;
+  const dot = document.getElementById('acct-dot');
+  const label = document.getElementById('acct-label');
+  const asset = document.getElementById('acct-asset');
+  const pnl = document.getElementById('acct-pnl');
+  if (b?.connected) {
+    dot.style.background = '#22c55e';
+    label.textContent = b.env === 'paper' ? '모의투자 계좌' : '실전 계좌';
+    asset.textContent = `₩${fmt(b.total_asset)}`;
+    pnl.textContent = `평가손익 ${b.today_pnl >= 0 ? '+' : ''}${fmt(b.today_pnl)} (${pct(b.today_pnl_pct)})`;
+    pnl.className = `num acct-pnl ${b.today_pnl >= 0 ? 'up' : 'down'}`;
+  } else {
+    label.textContent = '가상 계좌';
+    asset.textContent = '—';
+    pnl.textContent = broker?.connected === false && broker?.env
+      ? 'KIS 인증 실패' : '브로커 미연동';
+  }
 }
 
 async function toggleAuto() {
@@ -116,10 +140,14 @@ function renderDashboard() {
   const lstmTop = (byModel.lstm_sequence || []).filter((p) => p.horizon === 7).slice(0, 3);
   const recs = [...rankTop, ...lstmTop];
 
+  const bal = state.balance;
   el.innerHTML = `
     <div class="grid-stats">
       <div class="stat"><div class="label">총 자산</div>
-        <div class="value num">—</div><div class="sub">브로커 미연동 (${esc(broker?.provider || 'KIS')})</div></div>
+        <div class="value num">${bal?.connected ? '₩' + fmt(bal.total_asset) : '—'}</div>
+        <div class="sub">${bal?.connected
+          ? `${bal.env === 'paper' ? '모의투자' : '실전'} · 예수금 ₩${fmt(bal.cash)}`
+          : `브로커 미연동 (${esc(broker?.provider || 'KIS')})`}</div></div>
       <div class="stat"><div class="label">데이터 기준일</div>
         <div class="value num">${state.health?.panel_base_date ?? '—'}</div><div class="sub">master_panel.parquet</div></div>
       <div class="stat"><div class="label">등록 모델</div>
@@ -132,8 +160,17 @@ function renderDashboard() {
     <div class="dash-grid">
       <div class="dash-col">
         <div class="card">
-          <div class="card-title">보유 종목 <span class="light">· 한국투자증권 연동 후 표시</span></div>
-          <div class="empty">브로커(KIS) 미연동 상태입니다.<br>모델·UI 완성 후 자동매매 단계에서 연동됩니다.</div>
+          <div class="card-title">보유 종목 <span class="light">· 한국투자증권${bal?.connected ? '' : ' 연동 후 표시'}</span></div>
+          ${bal?.connected
+            ? (bal.holdings.length
+                ? bal.holdings.map((h) => `<div class="rec-item">
+                    <div class="rec-main"><div class="rec-name">${esc(h.name)}</div>
+                      <div class="rec-model num">${h.ticker} · ${fmt(h.qty)}주 · 평단 ₩${fmt(h.avg_price)}</div></div>
+                    <div class="rec-right"><div class="num ${h.pnl_pct >= 0 ? 'up' : 'down'}">${pct(h.pnl_pct)}</div>
+                      <div class="rec-sub num">₩${fmt(h.cur_price)}</div></div>
+                  </div>`).join('')
+                : '<div class="empty">보유 종목이 없습니다.</div>')
+            : '<div class="empty">브로커(KIS) 미연동 상태입니다.<br>[매매 · 주문] 화면에서 연동 방법을 확인하세요.</div>'}
         </div>
         <div class="card">
           <div class="card-title">최근 실행 이력</div>
@@ -148,11 +185,22 @@ function renderDashboard() {
         </div>
         <div class="card">
           <div class="card-title">자동매매 체결 로그</div>
-          <div class="empty">KIS 연동 전 — 체결 내역이 없습니다.</div>
+          <div id="dash-trades"><div class="empty">불러오는 중…</div></div>
         </div>
       </div>
     </div>`;
   loadRuns();
+  loadDashTrades();
+}
+
+async function loadDashTrades() {
+  const box = document.getElementById('dash-trades');
+  if (!box) return;
+  try {
+    const { trades } = await api('/broker/trades?limit=6');
+    box.innerHTML = trades.length ? trades.map(tradeRow).join('')
+      : '<div class="empty">주문/체결 내역이 없습니다.</div>';
+  } catch { box.innerHTML = '<div class="empty">체결 내역이 없습니다.</div>'; }
 }
 
 async function loadRuns() {
@@ -546,6 +594,232 @@ async function renderResultScreen() {
     b.addEventListener('click', () => { state.resultModel = b.dataset.m; renderResultScreen(); }));
 }
 
+/* ---------- 매매 · 주문 화면 ---------- */
+const ACT_COLORS = { BUY: ['rgba(246,70,93,.15)', '#f6465d'], SELL: ['rgba(59,130,246,.15)', '#3b82f6'] };
+
+function holdingRow(h) {
+  const cls = h.pnl_pct >= 0 ? 'up' : 'down';
+  return `<div class="rt-row" style="grid-template-columns:1.4fr .7fr .9fr .9fr .9fr">
+    <span style="font-weight:500">${esc(h.name)} <span class="num" style="color:#5c6b80;font-size:11px">${h.ticker}</span></span>
+    <span class="num" style="text-align:right">${fmt(h.qty)}주</span>
+    <span class="num" style="text-align:right">${fmt(h.avg_price)}</span>
+    <span class="num" style="text-align:right">${fmt(h.cur_price)}</span>
+    <span class="num ${cls}" style="text-align:right">${pct(h.pnl_pct)}</span>
+  </div>`;
+}
+
+function planRow(o, i, canOrder) {
+  const [bg, fg] = ACT_COLORS[o.action] || ['#131a24', '#7d8ba0'];
+  return `<div class="rec-item">
+    <span class="badge" style="background:${bg};color:${fg};min-width:38px;text-align:center">${o.action === 'BUY' ? '매수' : '매도'}</span>
+    <div class="rec-main">
+      <div class="rec-name">${esc(o.name || o.ticker)} <span class="num" style="color:#5c6b80;font-size:11px">${o.ticker}</span></div>
+      <div class="rec-model">${esc(o.reason)}</div>
+    </div>
+    <div class="rec-right">
+      <div class="num" style="font-size:12.5px">${fmt(o.qty)}주 · ₩${fmt(o.price)}</div>
+      ${canOrder ? `<button class="chip plan-order-btn" data-i="${i}" style="margin-top:4px">주문</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function tradeRow(t) {
+  const [bg, fg] = ACT_COLORS[t.side] || ['#131a24', '#7d8ba0'];
+  const ok = t.status !== 'failed';
+  return `<div class="rec-item">
+    <span class="badge" style="background:${bg};color:${fg}">${t.side === 'BUY' ? '매수' : '매도'}</span>
+    <div class="rec-main">
+      <span style="font-size:12.5px;font-weight:500">${esc(t.name || t.ticker)}</span>
+      <span class="num" style="font-size:11px;color:#7d8ba0"> ${fmt(t.qty)}주${t.price ? ` · ₩${fmt(t.price)}` : ''}</span>
+      ${t.reason ? `<div class="rec-model">${esc(t.reason)}</div>` : ''}
+    </div>
+    <div class="rec-right">
+      <span class="badge" style="background:${ok ? 'rgba(34,197,94,.15)' : 'rgba(246,70,93,.15)'};color:${ok ? '#22c55e' : '#f6465d'}">${ok ? (t.status === 'filled' ? '체결' : '접수') : '실패'}</span>
+      <div class="num" style="font-size:10.5px;color:#5c6b80;margin-top:3px">${esc(String(t.ts || '').slice(5, 16))}</div>
+    </div>
+  </div>`;
+}
+
+async function renderTradingScreen() {
+  const el = document.getElementById('screen-trading');
+  el.innerHTML = '<div class="empty">계좌·플랜 조회 중…</div>';
+  let bal = null, plan = null, trades = [], tradeSrc = 'local';
+  try { bal = await api('/broker/balance'); } catch { /* 미연동 표시 */ }
+  try { plan = await api('/broker/plan'); } catch { /* 미연동 표시 */ }
+  try { const t = await api('/broker/trades'); trades = t.trades; tradeSrc = t.source; } catch { /* 없음 */ }
+  state.balance = bal;
+  if (state.screen !== 'trading') return;
+
+  const connected = !!plan?.connected;
+  const isPaper = plan?.env === 'paper';
+  const sched = state.health?.scheduler;
+  const envBadge = connected
+    ? `<span class="badge" style="background:${isPaper ? 'rgba(34,197,94,.15)' : 'rgba(246,70,93,.15)'};color:${isPaper ? '#22c55e' : '#f6465d'}">${isPaper ? '모의투자' : '실전투자'}</span>`
+    : '<span class="badge" style="background:#131a24;color:#7d8ba0">미연동</span>';
+  const orders = plan?.orders || [];
+
+  el.innerHTML = `
+    <div class="trading-grid">
+      <div class="dash-col">
+        <div class="card">
+          <div class="card-title">계좌 현황 ${envBadge}
+            <span class="light num">${esc(plan?.account_no || '')}</span></div>
+          ${connected && bal?.connected ? `
+            <div class="grid-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
+              <div class="stat"><div class="label">총 자산</div><div class="value num">₩${fmt(bal.total_asset)}</div></div>
+              <div class="stat"><div class="label">예수금</div><div class="value num">₩${fmt(bal.cash)}</div></div>
+              <div class="stat"><div class="label">평가손익</div>
+                <div class="value num ${bal.today_pnl >= 0 ? 'up' : 'down'}">${bal.today_pnl >= 0 ? '+' : ''}${fmt(bal.today_pnl)}</div>
+                <div class="sub num">${pct(bal.today_pnl_pct)}</div></div>
+            </div>
+            ${bal.holdings.length ? `
+              <div class="result-table">
+                <div class="rt-head" style="grid-template-columns:1.4fr .7fr .9fr .9fr .9fr">
+                  <span>종목</span><span style="text-align:right">수량</span><span style="text-align:right">평단</span><span style="text-align:right">현재가</span><span style="text-align:right">손익률</span></div>
+                ${bal.holdings.map(holdingRow).join('')}
+              </div>` : '<div class="empty">보유 종목이 없습니다.</div>'}`
+          : `<div class="empty">KIS 미연동 상태입니다.<br>
+              프로젝트 루트 <b>.env</b>에 아래 4개를 설정하면 자동 인식됩니다 (재시작 불필요).<br><br>
+              <span class="num" style="font-size:11.5px;text-align:left;display:inline-block">
+              KIS_APP_KEY=발급키<br>KIS_APP_SECRET=시크릿<br>KIS_ACCOUNT_NO=12345678-01<br>KIS_ENV=paper &nbsp;# 모의투자(권장)</span><br><br>
+              발급: apiportal.koreainvestment.com → API 신청 (모의투자 계좌 무료)</div>`}
+        </div>
+        <div class="card">
+          <div class="card-title">수동 주문 ${connected ? '' : '<span class="light">· 연동 후 사용 가능</span>'}</div>
+          <div class="ord-form">
+            <div style="position:relative">
+              <input id="ord-ticker" class="fld" placeholder="종목명 또는 코드 검색" autocomplete="off" ${connected ? '' : 'disabled'} style="width:100%;box-sizing:border-box">
+              <div id="ord-suggest" class="ord-suggest hidden"></div>
+            </div>
+            <div class="ord-row">
+              <button id="ord-buy" class="mode-btn side-btn active" data-side="BUY"><div class="t up">매수</div></button>
+              <button id="ord-sell" class="mode-btn side-btn" data-side="SELL"><div class="t down">매도</div></button>
+            </div>
+            <div class="ord-row">
+              <input id="ord-qty" class="fld num" type="number" min="1" placeholder="수량" ${connected ? '' : 'disabled'}>
+              <input id="ord-price" class="fld num" type="number" min="0" placeholder="지정가 (빈칸 = 시장가)" ${connected ? '' : 'disabled'}>
+            </div>
+            <button id="ord-submit" class="run-btn" ${connected ? '' : 'disabled'}>주문 실행</button>
+            <div id="ord-msg" class="hint"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dash-col">
+        <div class="card">
+          <div class="card-title">오늘의 매매 플랜 <span class="tag">AI</span>
+            <span class="light num">신호 ${esc(plan?.signal_date || '—')}</span></div>
+          <div class="hint" style="margin-bottom:10px">
+            매매 타이밍: 08:00 예측 → <b>평일 ${esc((sched?.trade_times || ['09:05']).join(' · '))}</b> 자동 리밸런스
+            (다음 실행 ${esc(sched?.trade_next_run ? sched.trade_next_run.slice(5, 16).replace('T', ' ') : '—')})
+            · 자동매매 ${plan?.auto_trade ? '<span class="up">ON</span>' : 'OFF'}
+            ${connected && !isPaper ? ' · <span class="down">실전 계좌 — 일괄 실행 차단, 수동 주문만 가능</span>' : ''}</div>
+          ${orders.length ? orders.map((o, i) => planRow(o, i, connected)).join('')
+            : '<div class="empty">현재 실행할 주문이 없습니다.<br>모델 예측이 없거나, 이미 목표 포트폴리오와 일치합니다.</div>'}
+          ${(plan?.notes || []).map((n) => `<div class="hint" style="margin-top:8px">· ${esc(n)}</div>`).join('')}
+          <div class="save-row" style="margin-top:14px">
+            <button id="plan-refresh" class="chip">플랜 새로고침</button>
+            <button id="plan-exec" class="run-btn" style="width:auto;padding:10px 18px"
+              ${connected && isPaper && orders.length ? '' : 'disabled'}>전체 실행 (모의투자)</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">체결 로그 <span class="light">· ${tradeSrc === 'kis' ? 'KIS 계좌 최근 7일' : '앱 주문 기록'}</span></div>
+          ${trades.length ? trades.map(tradeRow).join('')
+            : '<div class="empty">주문/체결 내역이 없습니다.</div>'}
+        </div>
+      </div>
+    </div>`;
+
+  renderSidebarAcct();
+  document.getElementById('plan-refresh').addEventListener('click', renderTradingScreen);
+
+  let side = 'BUY';
+  el.querySelectorAll('.side-btn').forEach((b) => b.addEventListener('click', () => {
+    side = b.dataset.side;
+    el.querySelectorAll('.side-btn').forEach((x) => x.classList.toggle('active', x === b));
+  }));
+
+  // 종목 자동완성 — 종목명 + 코드 동시 표시
+  const ordInput = document.getElementById('ord-ticker');
+  const suggestBox = document.getElementById('ord-suggest');
+  function renderSuggest(q) {
+    if (!suggestBox) return;
+    if (!q) { suggestBox.classList.add('hidden'); return; }
+    const hits = state.stocks.filter((s) =>
+      s.name.includes(q) || s.ticker.includes(q)).slice(0, 8);
+    if (!hits.length) { suggestBox.classList.add('hidden'); return; }
+    suggestBox.classList.remove('hidden');
+    suggestBox.innerHTML = hits.map((s) => `
+      <button class="ord-suggest-item" data-code="${s.ticker}" data-name="${esc(s.name)}">
+        <span class="nm">${esc(s.name)}</span>
+        <span class="num cd">${s.ticker}</span>
+        <span class="num pr">₩${fmt(s.close)}</span>
+      </button>`).join('');
+    suggestBox.querySelectorAll('.ord-suggest-item').forEach((b) =>
+      b.addEventListener('click', () => {
+        ordInput.value = `${b.dataset.name} (${b.dataset.code})`;
+        ordInput.dataset.code = b.dataset.code;
+        suggestBox.classList.add('hidden');
+      }));
+  }
+  ordInput?.addEventListener('input', (e) => {
+    delete ordInput.dataset.code;               // 직접 수정하면 선택 해제
+    renderSuggest(e.target.value.trim());
+  });
+  ordInput?.addEventListener('blur', () => setTimeout(() =>
+    suggestBox?.classList.add('hidden'), 200)); // 항목 클릭이 먼저 처리되도록 지연
+
+  const msgBox = () => document.getElementById('ord-msg');
+  document.getElementById('ord-submit')?.addEventListener('click', async () => {
+    const raw = ordInput.value.trim();
+    const qty = +document.getElementById('ord-qty').value;
+    const priceRaw = document.getElementById('ord-price').value;
+    const price = priceRaw ? +priceRaw : null;
+    // 코드 결정: 자동완성 선택 > 입력값 내 6자리 코드 > 이름 완전 일치
+    const code = ordInput.dataset.code
+      || (raw.match(/\d{6}/) || [])[0]
+      || state.stocks.find((s) => s.name === raw)?.ticker || '';
+    const stock = state.stocks.find((s) => s.ticker === code);
+    if (!/^\d{6}$/.test(code)) { msgBox().textContent = '종목을 목록에서 선택하거나 코드(6자리)를 입력하세요.'; return; }
+    if (!qty || qty < 1) { msgBox().textContent = '수량을 입력하세요.'; return; }
+    const label = `${stock ? `${stock.name} (${code})` : code} ${qty}주 ${side === 'BUY' ? '매수' : '매도'} (${price ? `지정가 ₩${fmt(price)}` : '시장가'})`;
+    if (!confirm(`${isPaper ? '[모의투자]' : '[실전투자 — 실제 자금이 사용됩니다!]'}\n${label}\n\n주문을 접수할까요?`)) return;
+    msgBox().textContent = '주문 접수 중…';
+    try {
+      const r = await api('/broker/order', {
+        method: 'POST', body: JSON.stringify({ ticker: code, side, qty, price }) });
+      msgBox().textContent = `✓ 접수 완료 — 주문번호 ${r.order_no || '—'}`;
+      setTimeout(renderTradingScreen, 1200);
+    } catch (e) { msgBox().textContent = `✗ ${e.message}`; }
+  });
+
+  el.querySelectorAll('.plan-order-btn').forEach((b) => b.addEventListener('click', async () => {
+    const o = orders[+b.dataset.i];
+    if (!o) return;
+    const label = `${o.name || o.ticker} ${o.qty}주 ${o.action === 'BUY' ? '매수' : '매도'} (시장가)\n사유: ${o.reason}`;
+    if (!confirm(`${isPaper ? '[모의투자]' : '[실전투자 — 실제 자금이 사용됩니다!]'}\n${label}\n\n주문을 접수할까요?`)) return;
+    b.disabled = true; b.textContent = '접수 중';
+    try {
+      await api('/broker/order', {
+        method: 'POST', body: JSON.stringify({ ticker: o.ticker, side: o.action, qty: o.qty, price: null }) });
+      renderTradingScreen();
+    } catch (e) { alert(`주문 실패: ${e.message}`); b.disabled = false; b.textContent = '주문'; }
+  }));
+
+  document.getElementById('plan-exec')?.addEventListener('click', async () => {
+    const summary = orders.map((o) => `· ${o.action === 'BUY' ? '매수' : '매도'} ${o.name || o.ticker} ${o.qty}주`).join('\n');
+    if (!confirm(`[모의투자] 매매 플랜 ${orders.length}건을 시장가로 일괄 접수합니다.\n\n${summary}\n\n진행할까요?`)) return;
+    const btn = document.getElementById('plan-exec');
+    btn.disabled = true; btn.textContent = '실행 중…';
+    try {
+      const r = await api('/broker/execute-plan', {
+        method: 'POST', body: JSON.stringify({ confirm: true }) });
+      alert(`플랜 실행: ${r.message}`);
+    } catch (e) { alert(`실행 실패: ${e.message}`); }
+    renderTradingScreen();
+  });
+}
+
 /* ---------- 설정 화면 ---------- */
 function renderSettings() {
   const el = document.getElementById('screen-settings');
@@ -562,8 +836,13 @@ function renderSettings() {
               <div class="t">${t}</div><div class="d">${d}</div></button>`).join('')}
         </div>
         <div class="fld-grid">
-          <div><div class="fld-label">증권사</div><div class="fld">한국투자증권 REST (미연동)</div></div>
-          <div><div class="fld-label">APP KEY</div><div class="fld num" style="color:#7d8ba0">연동 시 환경변수로 설정</div></div>
+          <div><div class="fld-label">증권사</div>
+            <div class="fld">${broker?.connected
+              ? `한국투자증권 REST — ${broker.env === 'paper' ? '모의투자' : '실전'} 연동됨 (${esc(broker.account_no || '')})`
+              : '한국투자증권 REST (미연동)'}</div></div>
+          <div><div class="fld-label">APP KEY</div>
+            <div class="fld num" style="color:#7d8ba0">${broker?.connected
+              ? '설정됨 (.env)' : '.env에 KIS_APP_KEY 등 4개 키 설정'}</div></div>
         </div>
       </div>
       <div class="card">
@@ -587,6 +866,25 @@ function renderSettings() {
           <div class="fld-grid">
             <div><div class="fld-label">종목당 최대 투자금</div><div class="fld num">₩ ${fmt(s.max_position_krw)}</div></div>
             <div><div class="fld-label">최대 동시 보유 종목</div><div class="fld num">${s.max_holdings} 종목</div></div>
+          </div>
+          <div>
+            <div style="font-size:12.5px;color:#c3cede;margin-bottom:9px">자동매매 실행 시각
+              <span style="color:#5c6b80;font-size:11px">· 평일 장중(09:00~15:20)만 · 여러 개 가능</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" id="time-chips">
+              ${(s.trade_times || ['09:05']).map((t) =>
+                `<span class="chip active num" style="display:inline-flex;align-items:center;gap:6px">${t}
+                  <b class="time-del" data-t="${t}" style="cursor:pointer;font-weight:700">✕</b></span>`).join('')}
+              <select id="in-time-h" class="fld num" style="width:76px;padding:6px 8px;background:#0d1117;border:1px solid #1e2836;color:#e5edf7">
+                ${[9, 10, 11, 12, 13, 14, 15].map((h) =>
+                  `<option value="${String(h).padStart(2, '0')}">${String(h).padStart(2, '0')}시</option>`).join('')}
+              </select>
+              <select id="in-time-m" class="fld num" style="width:76px;padding:6px 8px;background:#0d1117;border:1px solid #1e2836;color:#e5edf7">
+                ${Array.from({ length: 60 }, (_, m) =>
+                  `<option value="${String(m).padStart(2, '0')}">${String(m).padStart(2, '0')}분</option>`).join('')}
+              </select>
+              <button id="add-time" class="chip">+ 추가</button>
+            </div>
+            <div class="hint" style="margin-top:6px">매 실행마다 플랜(리밸런스·익절·손절)을 다시 계산해요 — 목표와 일치하면 주문 없이 넘어갑니다.</div>
           </div>
           <div>
             <div style="font-size:12.5px;color:#c3cede;margin-bottom:9px">사용 모델</div>
@@ -615,6 +913,19 @@ function renderSettings() {
       document.getElementById(vId).textContent = fmtV(e.target.value);
     });
   });
+  document.getElementById('add-time').addEventListener('click', () => {
+    const v = `${document.getElementById('in-time-h').value}:${document.getElementById('in-time-m').value}`;
+    if (v < '09:00' || v > '15:20') { alert('장중(09:00~15:20) 시각만 추가할 수 있어요.'); return; }
+    const cur = new Set(state.settings.trade_times || ['09:05']);
+    cur.add(v);
+    state.settings = { ...state.settings, trade_times: [...cur].sort() };
+    renderSettings();
+  });
+  el.querySelectorAll('.time-del').forEach((b) => b.addEventListener('click', () => {
+    const left = (state.settings.trade_times || ['09:05']).filter((t) => t !== b.dataset.t);
+    state.settings = { ...state.settings, trade_times: left.length ? left : ['09:05'] };
+    renderSettings();
+  }));
   document.getElementById('model-chips').querySelectorAll('.chip').forEach((b) =>
     b.addEventListener('click', () => {
       const cur = new Set(state.settings.enabled_models || []);
@@ -653,7 +964,9 @@ async function boot() {
   }
   await refreshLatest();
   try { state.stocks = (await api('/stocks')).stocks; } catch { state.stocks = []; }
+  try { state.balance = await api('/broker/balance'); } catch { state.balance = null; }
   renderTopbar();
+  renderSidebarAcct();
   switchScreen('dashboard');
   window.addEventListener('resize', () => {
     if (state.screen === 'chart' && state.prices) drawChart();

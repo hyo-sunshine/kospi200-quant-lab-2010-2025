@@ -8,3 +8,5 @@ torch>=2.3             # 모델 2: lstm_sequence_strategy
 fastapi>=0.111         # app: QuantDesk 콘솔
 uvicorn[standard]>=0.30
 apscheduler>=3.10      # 매일 08:00 예측 배치
+pykrx>=1.2.8          # pipeline: KRX 일별 수집 (로그인)
+requests>=2.31        # pipeline·broker: HTTP 클라이언트

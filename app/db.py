@@ -44,6 +44,23 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS trade_log (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts        TEXT DEFAULT (datetime('now','localtime')),
+    env       TEXT,                        -- paper / real
+    side      TEXT NOT NULL,               -- BUY / SELL
+    ticker    TEXT NOT NULL,
+    name      TEXT,
+    qty       INTEGER,
+    price     REAL,
+    ord_dvsn  TEXT,                        -- 00 지정가 / 01 시장가
+    status    TEXT,                        -- submitted / failed
+    order_no  TEXT,
+    reason    TEXT,                        -- 매매 사유 (모델 신호·익절·손절 등)
+    message   TEXT,
+    trigger   TEXT                         -- manual / schedule
+);
 """
 
 DEFAULT_SETTINGS = {
@@ -55,6 +72,7 @@ DEFAULT_SETTINGS = {
     "max_position_krw": 2000000,
     "max_holdings": 5,
     "enabled_models": ["rank_ensemble", "lstm_sequence"],
+    "trade_times": ["09:05"],      # 자동매매 실행 시각 (평일 장중, HH:MM)
 }
 
 
@@ -169,6 +187,24 @@ def recent_runs(limit: int = 20) -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM prediction_runs ORDER BY run_id DESC LIMIT ?",
             (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---------- 매매 로그 ----------
+def add_trade(row: dict):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO trade_log
+               (env, side, ticker, name, qty, price, ord_dvsn, status,
+                order_no, reason, message, trigger)
+               VALUES (:env, :side, :ticker, :name, :qty, :price, :ord_dvsn,
+                       :status, :order_no, :reason, :message, :trigger)""", row)
+
+
+def list_trades(limit: int = 20) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM trade_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return [dict(r) for r in rows]
 
 

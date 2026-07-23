@@ -21,3 +21,6 @@ data/processed/**
 
 # 학습 로그 (가중치 .pt 는 포함)
 model/lstm_sequence_strategy/models/train_history.csv
+
+# 서버 실행 로그
+server.log

@@ -19,6 +19,11 @@ SCHEDULE_MINUTE = 0
 TIMEZONE = "Asia/Seoul"
 DATA_UPDATE_ENABLED = True     # 08:00 배치에서 패널 증분 갱신 수행 여부
 
+# 자동매매 배치 — 개장 직후 변동성 구간(09:00~09:05)을 피해 실행 (평일만)
+# auto_trade ON + KIS 모의투자(paper) 연동 시에만 실제 주문이 나간다.
+TRADE_HOUR = 9
+TRADE_MINUTE = 5
+
 # UI 차트에 기본으로 내려줄 일봉 개수
 DEFAULT_CHART_DAYS = 90
 MAX_CHART_DAYS = 500
